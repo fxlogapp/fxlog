@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Journal & Emotion Tracker</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0b0e14',
+                        cardBg: '#151921',
+                        cardBorder: '#222733',
+                        profitGreen: '#10B981',
+                        lossRed: '#EF4444',
+                        accentBlue: '#3B82F6'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0e14;
+            color: #f3f4f6;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #151921;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2a3142;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3b82f6;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col pb-10">
+
+<!-- Header / Navbar -->
+<header class="bg-cardBg border-b border-cardBorder sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="p-2 bg-accentBlue/20 text-accentBlue rounded-lg">
+                <i data-lucide="candlestick-chart" class="w-6 h-6"></i>
+            </div>
+            <span class="text-xl font-bold text-white tracking-wide">Fx Log <span class="text-xs font-normal text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800">Journal & Emotion</span></span>
+        </div>
+
+        <div class="flex items-center space-x-2 sm:space-x-4">
+            <!-- New Trade Button with Ad Trigger -->
+            <button onclick="triggerNewTradeAd()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-2 sm:px-4 sm:py-2 rounded-xl flex items-center gap-2 text-sm transition shadow-lg shadow-emerald-900/20">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                <span>New Trade</span>
+            </button>
+            <button onclick="exportData()" title="Export Data" class="p-2 bg-cardBorder hover:bg-gray-700 text-gray-300 rounded-xl transition">
+                <i data-lucide="download" class="w-4 h-4"></i>
+            </button>
+            <label title="Import Data" class="p-2 bg-cardBorder hover:bg-gray-700 text-gray-300 rounded-xl cursor-pointer transition">
+                <i data-lucide="upload" class="w-4 h-4"></i>
+                <input type="file" id="importFileInput" onchange="importData(event)" class="hidden" accept=".json">
+            </label>
+        </div>
+    </div>
+</header>
+
+<!-- Main Container -->
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 flex-1 w-full space-y-6">
+
+    <!-- Metrics Dashboard Summary -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+        <!-- Metric 1: Net P&L -->
+        <div class="bg-cardBg border border-cardBorder p-4 rounded-2xl shadow-sm">
+            <p class="text-xs font-medium text-gray-400">Total Net P&L</p>
+            <h3 id="statNetPnL" class="text-xl font-bold mt-1 text-emerald-400">$0.00</h3>
+            <span id="statPnLSub" class="text-[10px] text-gray-500">From all trades</span>
+        </div>
+
+        <!-- Metric 2: Win Rate -->
+        <div class="bg-cardBg border border-cardBorder p-4 rounded-2xl shadow-sm">
+            <p class="text-xs font-medium text-gray-400">Win Rate</p>
+            <h3 id="statWinRate" class="text-xl font-bold mt-1 text-white">0%</h3>
+            <div class="w-full bg-gray-800 rounded-full h-1.5 mt-2">
+                <div id="statWinRateBar" class="bg-emerald-500 h-1.5 rounded-full" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Metric 3: Total Trades -->
+        <div class="bg-cardBg border border-cardBorder p-4 rounded-2xl shadow-sm">
+            <p class="text-xs font-medium text-gray-400">Total Trades</p>
+            <h3 id="statTotalTrades" class="text-xl font-bold mt-1 text-white">0</h3>
+            <span class="text-[10px] text-gray-500"><span id="statWins" class="text-emerald-400">0W</span> - <span id="statLosses" class="text-rose-400">0L</span></span>
+        </div>
+
+        <!-- Metric 4: Best Setup -->
+        <div class="bg-cardBg border border-cardBorder p-4 rounded-2xl shadow-sm">
+            <p class="text-xs font-medium text-gray-400">Best Setup / Strategy</p>
+            <h3 id="statBestSetup" class="text-sm font-semibold mt-2 text-blue-400 truncate">N/A</h3>
+            <span class="text-[10px] text-gray-500">Top winning setup</span>
+        </div>
+
+        <!-- Metric 5: Top Emotion -->
+        <div class="bg-cardBg border border-cardBorder p-4 rounded-2xl shadow-sm">
+            <p class="text-xs font-medium text-gray-400">Most Used Emotion</p>
+            <h3 id="statFrequentEmotion" class="text-sm font-semibold mt-2 text-amber-400 truncate">N/A</h3>
+            <span class="text-[10px] text-gray-500">Emotional State</span>
+        </div>
+
+        <!-- Metric 6: Avg Win/Loss Ratio -->
+        <div class="bg-cardBg border border-cardBorder p-4 rounded-2xl shadow-sm">
+            <p class="text-xs font-medium text-gray-400">Avg Profit / Loss</p>
+            <h3 id="statAvgProfit" class="text-xl font-bold mt-1 text-emerald-400">$0.00</h3>
+            <span class="text-[10px] text-gray-500">Average gain per trade</span>
+        </div>
+    </div>
+
+    <!-- Performance Insights Warning Box -->
+    <div id="insightsContainer" class="hidden bg-amber-950/30 border border-amber-800/50 rounded-2xl p-4 text-amber-200 text-sm flex items-start gap-3">
+        <i data-lucide="brain-circuit" class="w-5 h-5 text-amber-400 shrink-0 mt-0.5"></i>
+        <div>
+            <h4 class="font-semibold text-amber-300">Smart Trading Insights</h4>
+            <p id="insightText" class="mt-0.5 text-amber-200/90 text-xs sm:text-sm">Analyzing trade data to provide insights...</p>
+        </div>
+    </div>
+
+    <!-- Analytics Charts Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Chart 1: Emotional Impact on P&L -->
+        <div class="bg-cardBg border border-cardBorder p-5 rounded-2xl shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-semibold text-white flex items-center gap-2">
+                    <i data-lucide="smile" class="w-4 h-4 text-amber-400"></i> P&L Performance by Emotion
+                </h3>
+                <span class="text-xs text-gray-400">Profit/Loss by emotion</span>
+            </div>
+            <div class="h-64 relative">
+                <canvas id="emotionPnLChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Chart 2: Win Rate by Trading Session -->
+        <div class="bg-cardBg border border-cardBorder p-5 rounded-2xl shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-semibold text-white flex items-center gap-2">
+                    <i data-lucide="clock" class="w-4 h-4 text-blue-400"></i> Profitability by Trading Session
+                </h3>
+                <span class="text-xs text-gray-400">Session performance</span>
+            </div>
+            <div class="h-64 relative">
+                <canvas id="sessionChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trade History Table & Filter Section -->
+    <div class="bg-cardBg border border-cardBorder rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <i data-lucide="history" class="w-5 h-5 text-emerald-400"></i> Trade History & Logbook
+            </h3>
+
+            <!-- Filters -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <input type="text" id="filterSearch" oninput="renderTrades()" placeholder="Search Pair (e.g. XAUUSD)" class="bg-darkBg border border-cardBorder text-white px-3 py-2 rounded-xl focus:outline-none focus:border-accentBlue">
+
+                <select id="filterSession" onchange="renderTrades()" class="bg-darkBg border border-cardBorder text-white px-3 py-2 rounded-xl focus:outline-none focus:border-accentBlue">
+                    <option value="ALL">All Sessions</option>
+                    <option value="Asian">Asian Session</option>
+                    <option value="London">London Session</option>
+                    <option value="New York">New York Session</option>
+                </select>
+
+                <select id="filterEmotion" onchange="renderTrades()" class="bg-darkBg border border-cardBorder text-white px-3 py-2 rounded-xl focus:outline-none focus:border-accentBlue">
+                    <option value="ALL">All Emotions</option>
+                    <option value="Patience">Patience</option>
+                    <option value="Confident">Confident</option>
+                    <option value="Fear">Fear</option>
+                    <option value="Greed">Greed</option>
+                    <option value="FOMO">FOMO</option>
+                    <option value="Revenge">Revenge</option>
+                </select>
+
+                <select id="filterOutcome" onchange="renderTrades()" class="bg-darkBg border border-cardBorder text-white px-3 py-2 rounded-xl focus:outline-none focus:border-accentBlue">
+                    <option value="ALL">All Outcomes</option>
+                    <option value="WIN">Profit Only</option>
+                    <option value="LOSS">Loss Only</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Table Responsive Wrapper -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm border-collapse">
+                <thead>
+                <tr class="border-b border-cardBorder text-gray-400 text-xs uppercase bg-darkBg/50">
+                    <th class="py-3 px-3">Date</th>
+                    <th class="py-3 px-3">Pair / Type</th>
+                    <th class="py-3 px-3">Session</th>
+                    <th class="py-3 px-3">Setup</th>
+                    <th class="py-3 px-3">Emotion</th>
+                    <th class="py-3 px-3 text-right">Profit / Loss ($)</th>
+                    <th class="py-3 px-3 text-center">Action</th>
+                </tr>
+                </thead>
+                <tbody id="tradeTableBody" class="divide-y divide-cardBorder/50 text-gray-200">
+                <!-- Dynamic Rows Generated Here -->
+                </tbody>
+            </table>
+            <div id="noDataNotice" class="text-center py-10 text-gray-500 hidden">
+                <i data-lucide="folder-open" class="w-10 h-10 mx-auto mb-2 opacity-50"></i>
+                <p>No trade data found. Add a new trade!</p>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Modal 1: Add/Edit Trade Modal -->
+<div id="addTradeModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-cardBg border border-cardBorder w-full max-w-2xl rounded-2xl shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
+        <!-- Modal Header -->
+        <div class="px-6 py-4 border-b border-cardBorder flex items-center justify-between">
+            <h3 id="modalTitle" class="text-lg font-bold text-white flex items-center gap-2">
+                <i data-lucide="plus" class="w-5 h-5 text-emerald-400"></i> Add New Trade
+            </h3>
+            <!-- Cancel / Close button with Ad Trigger -->
+            <button onclick="triggerCancelAd()" class="text-gray-400 hover:text-white p-1">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Modal Form Body -->
+        <form id="tradeForm" onsubmit="handleTradeSubmit(event)" class="p-6 overflow-y-auto space-y-4">
+            <input type="hidden" id="tradeId">
+
+            <!-- Row 1: Pair & Type -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Pair / Asset *</label>
+                    <input type="text" id="pair" required placeholder="EURUSD, XAUUSD, BTC" class="w-full bg-darkBg border border-cardBorder rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accentBlue uppercase">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Trade Type *</label>
+                    <select id="type" required class="w-full bg-darkBg border border-cardBorder rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accentBlue">
+                        <option value="BUY">BUY</option>
+                        <option value="SELL">SELL</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Session *</label>
+                    <select id="session" required class="w-full bg-darkBg border border-cardBorder rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accentBlue">
+                        <option value="London">London Session</option>
+                        <option value="New York">New York Session</option>
+                        <option value="Asian">Asian Session</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Row 2: Prices & PnL -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Entry Price</label>
+                    <input type="number" step="any" id="entryPrice" placeholder="0.00" class="w-full bg-darkBg border border-cardBorder rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accentBlue">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Exit Price</label>
+                    <input type="number" step="any" id="exitPrice" placeholder="0.00" class="w-full bg-darkBg border border-cardBorder rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accentBlue">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Lot Size</label>
+                    <input type="number" step="any" id="lotSize" placeholder="0.1" class="w-full bg-darkBg border border-cardBorder rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accentBlue">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Profit / Loss ($) *</label>
+                    <input type="number" step="any" id="pnl" required placeholder="+50 or -20" class="w-full bg-darkBg border border-cardBorder rounded-xl px-3 py-2 text-sm font-bold text-emerald-400 focus:outline-none focus:border-accentBlue">
+                </div>
+            </div>
+
+            <!-- Row 3: Strategy & Emotion -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Strategy / Setup *</label>
+                    <input type="text" id="strategy" required placeholder="SMC, FVG, Breakout, Support/Resistance" class="w-full bg-darkBg border border-cardBorder rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accentBlue">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Emotional State *</label>
+                    <select id="emotion" required class="w-full bg-darkBg border border-cardBorder rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accentBlue">
+                        <option value="Patience">Patience (Disciplined & Rules-based)</option>
+                        <option value="Confident">Confident</option>
+                        <option value="Fear">Fear (Caution / Anxiety)</option>
+                        <option value="Greed">Greed (Over-leveraging)</option>
+                        <option value="FOMO">FOMO (Fear Of Missing Out)</option>
+                        <option value="Revenge">Revenge Trading</option>
+                        <option value="Anxious">Anxious</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Row 4: Notes -->
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Trade Notes & Key Takeaways</label>
+                <textarea id="notes" rows="3" placeholder="Why did you take this trade? Lessons learned..." class="w-full bg-darkBg border border-cardBorder rounded-xl p-3 text-sm text-white focus:outline-none focus:border-accentBlue resize-none"></textarea>
+            </div>
+
+            <!-- Row 5: Screenshot Upload -->
+            <div>
+                <label class="block text-xs text-gray-400 mb-1">Chart Screenshot / Image</label>
+                <input type="file" id="screenshotInput" accept="image/*" onchange="previewImage(event)" class="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-cardBorder file:text-white hover:file:bg-gray-700 cursor-pointer">
+                <div id="imagePreviewContainer" class="mt-2 hidden relative w-full h-36 bg-darkBg rounded-xl overflow-hidden border border-cardBorder">
+                    <img id="imagePreview" src="" alt="Screenshot Preview" class="w-full h-full object-contain">
+                    <button type="button" onclick="removeImage()" class="absolute top-2 right-2 p-1 bg-rose-600/80 text-white rounded-full hover:bg-rose-600">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="pt-4 border-t border-cardBorder flex justify-end gap-3">
+                <!-- Cancel Button with Ad Trigger -->
+                <button type="button" onclick="triggerCancelAd()" class="px-4 py-2 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 text-sm">Cancel</button>
+                <!-- Save Entry Button with Ad Trigger -->
+                <button type="submit" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm shadow-lg shadow-emerald-900/30">Save Entry</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal 2: Trade Detail View Modal -->
+<div id="detailTradeModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-cardBg border border-cardBorder w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        <div class="px-6 py-4 border-b border-cardBorder flex items-center justify-between">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <i data-lucide="file-text" class="w-5 h-5 text-accentBlue"></i> Trade Details
+            </h3>
+            <button onclick="closeModal('detailTradeModal')" class="text-gray-400 hover:text-white p-1">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <div id="detailModalContent" class="p-6 overflow-y-auto space-y-4">
+            <!-- Dynamically filled with JavaScript -->
+        </div>
+    </div>
+</div>
+
+<!-- Application JavaScript Logic -->
+<script>
+    // Data Structure & State Management
+    let trades = JSON.parse(localStorage.getItem('trade_journal_data')) || [];
+    let currentScreenshotBase64 = '';
+    let emotionChartInstance = null;
+    let sessionChartInstance = null;
+
+    // Initialize App on DOM Load
+    window.addEventListener('DOMContentLoaded', () => {
+        lucide.createIcons();
+        renderTrades();
+        updateDashboard();
+    });
+
+    // Ad Triggers Functions for Android Bridge
+    function triggerNewTradeAd() {
+        if (typeof AndroidBridge !== 'undefined') {
+            AndroidBridge.triggerAd();
+        }
+        openModal('addTradeModal');
+    }
+
+    function triggerCancelAd() {
+        if (typeof AndroidBridge !== 'undefined') {
+            AndroidBridge.triggerAd();
+        }
+        closeModal('addTradeModal');
+    }
+
+    // Save Data to Local Storage
+    function saveToLocalStorage() {
+        localStorage.setItem('trade_journal_data', JSON.stringify(trades));
+        renderTrades();
+        updateDashboard();
+    }
+
+    // Modal Handlers
+    function openModal(id) {
+        document.getElementById(id).classList.remove('hidden');
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+        if (id === 'addTradeModal') {
+            resetForm();
+        }
+    }
+
+    function resetForm() {
+        document.getElementById('tradeForm').reset();
+        document.getElementById('tradeId').value = '';
+        document.getElementById('modalTitle').innerHTML = `<i data-lucide="plus" class="w-5 h-5 text-emerald-400"></i> Add New Trade`;
+        currentScreenshotBase64 = '';
+        document.getElementById('imagePreviewContainer').classList.add('hidden');
+        document.getElementById('imagePreview').src = '';
+        lucide.createIcons();
+    }
+
+    // Convert Image File to Base64 String
+    function previewImage(event) {
+        const file = event.target.files[0];
+        if (file) {
+            if (file.size > 3 * 1024 * 1024) { // 3MB Limit
+                alert('Image size must be under 3MB!');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                currentScreenshotBase64 = e.target.result;
+                document.getElementById('imagePreview').src = currentScreenshotBase64;
+                document.getElementById('imagePreviewContainer').classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function removeImage() {
+        currentScreenshotBase64 = '';
+        document.getElementById('screenshotInput').value = '';
+        document.getElementById('imagePreviewContainer').classList.add('hidden');
+        document.getElementById('imagePreview').src = '';
+    }
+
+    // Handle Trade Form Submission (Create / Edit)
+    function handleTradeSubmit(e) {
+        e.preventDefault();
+
+        // Trigger Ad on Save Entry
+        if (typeof AndroidBridge !== 'undefined') {
+            AndroidBridge.triggerAd();
+        }
+
+        const tradeId = document.getElementById('tradeId').value;
+        const pair = document.getElementById('pair').value.toUpperCase().trim();
+        const type = document.getElementById('type').value;
+        const session = document.getElementById('session').value;
+        const entryPrice = parseFloat(document.getElementById('entryPrice').value) || 0;
+        const exitPrice = parseFloat(document.getElementById('exitPrice').value) || 0;
+        const lotSize = parseFloat(document.getElementById('lotSize').value) || 0;
+        const pnl = parseFloat(document.getElementById('pnl').value);
+        const strategy = document.getElementById('strategy').value.trim();
+        const emotion = document.getElementById('emotion').value;
+        const notes = document.getElementById('notes').value;
+
+        if (tradeId) {
+            // Edit existing trade
+            const index = trades.findIndex(t => t.id === tradeId);
+            if (index !== -1) {
+                trades[index] = {
+                    ...trades[index],
+                    pair, type, session, entryPrice, exitPrice, lotSize, pnl, strategy, emotion, notes,
+                    screenshot: currentScreenshotBase64 || trades[index].screenshot
+                };
+            }
+        } else {
+            // New trade record
+            const newTrade = {
+                id: 'trade_' + Date.now(),
+                date: new Date().toISOString(),
+                pair, type, session, entryPrice, exitPrice, lotSize, pnl, strategy, emotion, notes,
+                screenshot: currentScreenshotBase64
+            };
+            trades.unshift(newTrade);
+        }
+
+        saveToLocalStorage();
+        closeModal('addTradeModal');
+    }
+
+    // Render Trades List in Table
+    function renderTrades() {
+        const tbody = document.getElementById('tradeTableBody');
+        const search = document.getElementById('filterSearch').value.toUpperCase();
+        const session = document.getElementById('filterSession').value;
+        const emotion = document.getElementById('filterEmotion').value;
+        const outcome = document.getElementById('filterOutcome').value;
+
+        const filteredTrades = trades.filter(t => {
+            const matchSearch = t.pair.includes(search) || t.strategy.toUpperCase().includes(search);
+            const matchSession = session === 'ALL' || t.session === session;
+            const matchEmotion = emotion === 'ALL' || t.emotion === emotion;
+            const matchOutcome = outcome === 'ALL' || (outcome === 'WIN' ? t.pnl > 0 : t.pnl < 0);
+            return matchSearch && matchSession && matchEmotion && matchOutcome;
+        });
+
+        if (filteredTrades.length === 0) {
+            tbody.innerHTML = '';
+            document.getElementById('noDataNotice').classList.remove('hidden');
+            return;
+        }
+
+        document.getElementById('noDataNotice').classList.add('hidden');
+
+        tbody.innerHTML = filteredTrades.map(t => {
+            const isWin = t.pnl >= 0;
+            const formattedDate = new Date(t.date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+
+            return `
+                <tr class="hover:bg-cardBg/80 transition cursor-pointer" onclick="viewTradeDetails('${t.id}')">
+                    <td class="py-3 px-3 text-xs text-gray-400">${formattedDate}</td>
+                    <td class="py-3 px-3">
+                        <span class="font-bold text-white">${t.pair}</span>
+                        <span class="text-[10px] ml-1.5 px-1.5 py-0.5 rounded ${t.type === 'BUY' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-rose-950 text-rose-400 border border-rose-800'}">${t.type}</span>
+                    </td>
+                    <td class="py-3 px-3 text-xs text-gray-300">${t.session}</td>
+                    <td class="py-3 px-3 text-xs font-medium text-blue-400">${t.strategy}</td>
+                    <td class="py-3 px-3">
+                        <span class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full ${getEmotionBadgeColor(t.emotion)}">
+                            ${t.emotion}
+                        </span>
+                    </td>
+                    <td class="py-3 px-3 text-right font-bold ${isWin ? 'text-emerald-400' : 'text-rose-400'}">
+                        ${isWin ? '+' : ''}$${parseFloat(t.pnl).toFixed(2)}
+                    </td>
+                    <td class="py-3 px-3 text-center" onclick="event.stopPropagation()">
+                        <div class="flex items-center justify-center gap-2">
+                            <button onclick="editTrade('${t.id}')" title="Edit Entry" class="p-1 hover:text-blue-400 text-gray-400 transition">
+                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="deleteTrade('${t.id}')" title="Delete" class="p-1 hover:text-rose-400 text-gray-400 transition">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        lucide.createIcons();
+    }
+
+    // Helper Color Code for Emotion Badges
+    function getEmotionBadgeColor(emotion) {
+        switch (emotion) {
+            case 'Patience': return 'bg-emerald-950/80 text-emerald-300 border border-emerald-800';
+            case 'Confident': return 'bg-blue-950/80 text-blue-300 border border-blue-800';
+            case 'Fear': return 'bg-purple-950/80 text-purple-300 border border-purple-800';
+            case 'Greed': return 'bg-amber-950/80 text-amber-300 border border-amber-800';
+            case 'FOMO': return 'bg-rose-950/80 text-rose-300 border border-rose-800';
+            case 'Revenge': return 'bg-red-950/80 text-red-400 border border-red-800';
+            default: return 'bg-gray-800 text-gray-300';
+        }
+    }
+
+    // Delete Single Trade
+    function deleteTrade(id) {
+        if (confirm('Are you sure you want to delete this trade?')) {
+            trades = trades.filter(t => t.id !== id);
+            saveToLocalStorage();
+        }
+    }
+
+    // Edit Trade
+    function editTrade(id) {
+        const trade = trades.find(t => t.id === id);
+        if (!trade) return;
+
+        document.getElementById('tradeId').value = trade.id;
+        document.getElementById('pair').value = trade.pair;
+        document.getElementById('type').value = trade.type;
+        document.getElementById('session').value = trade.session;
+        document.getElementById('entryPrice').value = trade.entryPrice || '';
+        document.getElementById('exitPrice').value = trade.exitPrice || '';
+        document.getElementById('lotSize').value = trade.lotSize || '';
+        document.getElementById('pnl').value = trade.pnl;
+        document.getElementById('strategy').value = trade.strategy;
+        document.getElementById('emotion').value = trade.emotion;
+        document.getElementById('notes').value = trade.notes || '';
+
+        if (trade.screenshot) {
+            currentScreenshotBase64 = trade.screenshot;
+            document.getElementById('imagePreview').src = trade.screenshot;
+            document.getElementById('imagePreviewContainer').classList.remove('hidden');
+        } else {
+            removeImage();
+        }
+
+        document.getElementById('modalTitle').innerHTML = `<i data-lucide="edit-3" class="w-5 h-5 text-blue-400"></i> Edit Trade Entry`;
+        lucide.createIcons();
+
+        // Trigger Ad when opening edit as well (since it opens the trade form)
+        if (typeof AndroidBridge !== 'undefined') {
+            AndroidBridge.triggerAd();
+        }
+        openModal('addTradeModal');
+    }
+
+    // View Trade Details in Modal
+    function viewTradeDetails(id) {
+        const t = trades.find(item => item.id === id);
+        if (!t) return;
+
+        const isWin = t.pnl >= 0;
+        const content = document.getElementById('detailModalContent');
+        content.innerHTML = `
+            <div class="grid grid-cols-2 gap-4 bg-darkBg p-4 rounded-xl border border-cardBorder text-sm">
+                <div>
+                    <span class="text-xs text-gray-400 block">Pair / Type</span>
+                    <span class="font-bold text-white text-base">${t.pair} (${t.type})</span>
+                </div>
+                <div>
+                    <span class="text-xs text-gray-400 block">Profit / Loss</span>
+                    <span class="font-bold text-base ${isWin ? 'text-emerald-400' : 'text-rose-400'}">${isWin ? '+' : ''}$${parseFloat(t.pnl).toFixed(2)}</span>
+                </div>
+                <div>
+                    <span class="text-xs text-gray-400 block">Session</span>
+                    <span class="text-white">${t.session}</span>
+                </div>
+                <div>
+                    <span class="text-xs text-gray-400 block">Setup / Strategy</span>
+                    <span class="text-blue-400 font-medium">${t.strategy}</span>
+                </div>
+                <div>
+                    <span class="text-xs text-gray-400 block">Emotional State</span>
+                    <span class="inline-block mt-1 px-2.5 py-0.5 rounded-full text-xs ${getEmotionBadgeColor(t.emotion)}">${t.emotion}</span>
+                </div>
+                <div>
+                    <span class="text-xs text-gray-400 block">Lot Size</span>
+                    <span class="text-white">${t.lotSize || 'N/A'}</span>
+                </div>
+            </div>
+
+            ${t.notes ? `
+                <div>
+                    <h4 class="text-xs font-semibold text-gray-400 mb-1">Trade Notes & Lessons:</h4>
+                    <p class="text-sm bg-darkBg/60 border border-cardBorder p-3 rounded-xl text-gray-200">${t.notes}</p>
+                </div>
+            ` : ''}
+
+            ${t.screenshot ? `
+                <div>
+                    <h4 class="text-xs font-semibold text-gray-400 mb-2">Chart Screenshot:</h4>
+                    <div class="rounded-xl overflow-hidden border border-cardBorder bg-black">
+                        <img src="${t.screenshot}" alt="Trade Screenshot" class="w-full h-auto object-contain max-h-96">
+                    </div>
+                </div>
+            ` : '<p class="text-xs text-gray-500 italic">No screenshot uploaded.</p>'}
+        `;
+
+        openModal('detailTradeModal');
+    }
+
+    // Calculate and Update Metrics + Charts + AI Insights
+    function updateDashboard() {
+        const totalTrades = trades.length;
+        if (totalTrades === 0) {
+            document.getElementById('statNetPnL').innerText = '$0.00';
+            document.getElementById('statWinRate').innerText = '0%';
+            document.getElementById('statTotalTrades').innerText = '0';
+            document.getElementById('statWins').innerText = '0W';
+            document.getElementById('statLosses').innerText = '0L';
+            document.getElementById('statBestSetup').innerText = 'N/A';
+            document.getElementById('statFrequentEmotion').innerText = 'N/A';
+            document.getElementById('statAvgProfit').innerText = '$0.00';
+            document.getElementById('insightsContainer').classList.add('hidden');
+            renderCharts([], []);
+            return;
+        }
+
+        const wins = trades.filter(t => t.pnl > 0);
+        const losses = trades.filter(t => t.pnl < 0);
+        const totalPnL = trades.reduce((acc, t) => acc + parseFloat(t.pnl), 0);
+        const winRate = Math.round((wins.length / totalTrades) * 100);
+        const avgPnL = totalPnL / totalTrades;
+
+        // UI Stat Updates
+        const pnlElem = document.getElementById('statNetPnL');
+        pnlElem.innerText = `${totalPnL >= 0 ? '+' : ''}$${totalPnL.toFixed(2)}`;
+        pnlElem.className = `text-xl font-bold mt-1 ${totalPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+        document.getElementById('statWinRate').innerText = `${winRate}%`;
+        document.getElementById('statWinRateBar').style.width = `${winRate}%`;
+        document.getElementById('statTotalTrades').innerText = totalTrades;
+        document.getElementById('statWins').innerText = `${wins.length}W`;
+        document.getElementById('statLosses').innerText = `${losses.length}L`;
+
+        const avgElem = document.getElementById('statAvgProfit');
+        avgElem.innerText = `${avgPnL >= 0 ? '+' : ''}$${avgPnL.toFixed(2)}`;
+        avgElem.className = `text-xl font-bold mt-1 ${avgPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+        // Calculate Most Frequent Emotion
+        const emotionCounts = {};
+        trades.forEach(t => emotionCounts[t.emotion] = (emotionCounts[t.emotion] || 0) + 1);
+        const topEmotion = Object.keys(emotionCounts).reduce((a, b) => emotionCounts[a] > emotionCounts[b] ? a : b, 'N/A');
+        document.getElementById('statFrequentEmotion').innerText = topEmotion;
+
+        // Calculate Best Strategy Setup
+        const strategyPnL = {};
+        trades.forEach(t => strategyPnL[t.strategy] = (strategyPnL[t.strategy] || 0) + parseFloat(t.pnl));
+        const bestSetup = Object.keys(strategyPnL).reduce((a, b) => strategyPnL[a] > strategyPnL[b] ? a : b, 'N/A');
+        document.getElementById('statBestSetup').innerText = bestSetup;
+
+        // Generate Insights
+        generateTraderInsights(trades, winRate, topEmotion);
+
+        // Render Charts
+        renderCharts(trades);
+    }
+
+    // Smart Insights Engine
+    function generateTraderInsights(tradesList, winRate, topEmotion) {
+        const container = document.getElementById('insightsContainer');
+        const textElem = document.getElementById('insightText');
+
+        let badEmotionsTrades = tradesList.filter(t => ['FOMO', 'Greed', 'Revenge'].includes(t.emotion));
+        let badEmotionLosses = badEmotionsTrades.filter(t => t.pnl < 0);
+
+        let insightMessage = "";
+
+        if (badEmotionsTrades.length > 0 && (badEmotionLosses.length / badEmotionsTrades.length) >= 0.5) {
+            insightMessage = `⚠️ Warning: Most of your FOMO/Greed/Revenge trades resulted in losses. Focus on patient, rule-based trades only.`;
+        } else if (winRate >= 60) {
+            insightMessage = `🔥 Great job! Your win rate is ${winRate}%. Your discipline and setup are working well. Maintain your risk management!`;
+        } else if (winRate < 45) {
+            insightMessage = `💡 Your win rate is low (${winRate}%). Ensure a proper Risk-to-Reward ratio before entering and avoid FOMO trades.`;
+        } else {
+            insightMessage = `Analyzing records. Consistent trade journaling will refine your decision-making.`;
+        }
+
+        textElem.innerText = insightMessage;
+        container.classList.remove('hidden');
+    }
+
+    // Chart.js Visualizations
+    function renderCharts(tradesList) {
+        // Group Data for Emotion P&L Chart
+        const emotionPnL = {};
+        tradesList.forEach(t => {
+            emotionPnL[t.emotion] = (emotionPnL[t.emotion] || 0) + parseFloat(t.pnl);
+        });
+
+        const emotionLabels = Object.keys(emotionPnL);
+        const emotionData = Object.values(emotionPnL);
+        const emotionColors = emotionData.map(val => val >= 0 ? '#10B981' : '#EF4444');
+
+        // Render Emotion Chart
+        const ctxEmotion = document.getElementById('emotionPnLChart').getContext('2d');
+        if (emotionChartInstance) emotionChartInstance.destroy();
+
+        emotionChartInstance = new Chart(ctxEmotion, {
+            type: 'bar',
+            data: {
+                labels: emotionLabels,
+                datasets: [{
+                    label: 'Net P&L ($)',
+                    data: emotionData,
+                    backgroundColor: emotionColors,
+                    borderRadius: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#9CA3AF' }, grid: { display: false } },
+                    y: { ticks: { color: '#9CA3AF' }, grid: { color: '#222733' } }
+                }
+            }
+        });
+
+        // Group Data for Session Win Rate Chart
+        const sessions = ['London', 'New York', 'Asian'];
+        const sessionWins = [0, 0, 0];
+        const sessionTotals = [0, 0, 0];
+
+        tradesList.forEach(t => {
+            const idx = sessions.indexOf(t.session);
+            if (idx !== -1) {
+                sessionTotals[idx]++;
+                if (t.pnl > 0) sessionWins[idx]++;
+            }
+        });
+
+        const sessionWinRates = sessionTotals.map((tot, i) => tot > 0 ? Math.round((sessionWins[i] / tot) * 100) : 0);
+
+        // Render Session Chart
+        const ctxSession = document.getElementById('sessionChart').getContext('2d');
+        if (sessionChartInstance) sessionChartInstance.destroy();
+
+        sessionChartInstance = new Chart(ctxSession, {
+            type: 'doughnut',
+            data: {
+                labels: sessions,
+                datasets: [{
+                    data: sessionWinRates,
+                    backgroundColor: ['#3B82F6', '#8B5CF6', '#F59E0B'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: '#9CA3AF' } }
+                }
+            }
+        });
+    }
+
+    // Export Data as JSON File (Backup)
+    function exportData() {
+        if (trades.length === 0) {
+            alert('No trade data available to export!');
+            return;
+        }
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(trades, null, 2));
+        const downloadAnchor = document.createElement('a');
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", `trading_journal_backup_${new Date().toISOString().slice(0,10)}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+    }
+
+    // Import Data from JSON File
+    function importData(event) {
+        const fileReader = new FileReader();
+        fileReader.onload = function(e) {
+            try {
+                const importedTrades = JSON.parse(e.target.result);
+                if (Array.isArray(importedTrades)) {
+                    trades = importedTrades;
+                    saveToLocalStorage();
+                    alert('Data imported successfully!');
+                } else {
+                    alert('Please select a valid JSON backup file!');
+                }
+            } catch (err) {
+                alert('Invalid backup file format!');
+            }
+        };
+        fileReader.readAsText(event.target.files[0]);
+    }
+</script>
+</body>
+</html>
